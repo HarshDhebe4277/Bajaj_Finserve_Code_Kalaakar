@@ -6,26 +6,19 @@ FROM python:3.10-slim-buster
 # Set the working directory in the container to /app.
 WORKDIR /app
 
-# Set environment variables for NLTK data paths and unstructured's NLTK data.
-# This tells NLTK itself and the unstructured library where to find/store NLTK data.
-ENV NLTK_DATA /app/nltk_data
-ENV UNSTRUCTURED_NLTK_DOWNLOAD_PATH /app/nltk_data # NEW: Explicitly for unstructured
-
-# Create the directory for NLTK data.
-RUN mkdir -p /app/nltk_data
+# --- NEW LINES FOR HUGGING FACE CACHE ---
+# Set environment variable to tell Hugging Face Hub where to store cached models.
+# This ensures it writes to a writable directory inside our app.
+ENV HF_HOME /app/.cache/huggingface
+# Create the directory for Hugging Face cache.
+RUN mkdir -p /app/.cache/huggingface
+# --- END NEW LINES ---
 
 # Copy the requirements.txt file into the container at /app.
 COPY requirements.txt .
 
 # Install any needed packages specified in requirements.txt.
 RUN pip install --no-cache-dir -r requirements.txt
-
-# --- CRITICAL NLTK DATA DOWNLOAD FIX (Ensures data is present before app starts) ---
-# Download necessary NLTK data during the Docker build process to the /app/nltk_data directory.
-# This ensures they are available at runtime and prevents runtime download attempts/permission errors.
-RUN python -c "import nltk; nltk.data.path.append('/app/nltk_data'); nltk.download('punkt', download_dir='/app/nltk_data', quiet=True)"
-RUN python -c "import nltk; nltk.data.path.append('/app/nltk_data'); nltk.download('averaged_perceptron_tagger', download_dir='/app/nltk_data', quiet=True)"
-# --- END CRITICAL NLTK DATA DOWNLOAD FIX ---
 
 # Copy the rest of your application code into the container at /app.
 COPY . .
