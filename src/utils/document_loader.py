@@ -1,3 +1,5 @@
+# src/utils/document_loader.py
+
 import io
 import os
 import requests
@@ -5,8 +7,9 @@ from typing import List, Dict, Optional
 
 from pypdf import PdfReader
 from docx import Document
-from unstructured.partition.msg import partition_msg # for .msg outlook mails
-from unstructured.partition.email import partition_email # for standard format mail ex. gmail
+# REMOVED: from unstructured.partition.msg import partition_msg
+# REMOVED: from unstructured.partition.email import partition_email
+# We are no longer using unstructured for email parsing to avoid NLTK dependency and simplify deployment.
 
 def load_document_from_url(url : str) -> Optional[bytes]:
     """
@@ -21,10 +24,9 @@ def load_document_from_url(url : str) -> Optional[bytes]:
         print(f"Error loading document from {url}: {e}")
         return None
     
-
 def get_document_type(url:str) -> str:
     """
-    Determines the document type(pdf, docx, email, message, unknown) from the URL extension.
+    Determines the document type(pdf, docx, msg, eml, unknown) from the URL extension.
     """
     lower_url = url.lower()
     if ".pdf" in lower_url:
@@ -67,28 +69,18 @@ def extract_text_from_docx(docx_content: bytes) -> str:
 
 def extract_text_from_email(email_content: bytes, file_extension: str) -> str:
     """
-    Extracts text from email content(MSG or EMAIL) using unstructred.
-    Handles potential deading issues.
+    Extracts text from email content (MSG or EML) using a basic text decoding approach.
+    This is a fallback to avoid NLTK dependency from unstructured for deployment.
     """
-    elements = []
+    text = ""
     try:
-        if file_extension == "msg":
-            elements = partition_msg(file=io.BytesIO(email_content))
-        elif file_extension == "eml":
-            elements = partition_email(file=io.BytesIO(email_content))
-        else:
-            print(f"Unsupported email file extension for extraction: {file_extension}")
-            return ""
-        
-        text = "\n\n".join([str(el) for el in elements if hasattr(el, 'text')])
-        if not text:
-            text = email_content.decode('utf-8', errors='ignore')
+        # Attempt basic UTF-8 decoding, ignoring errors
+        text = email_content.decode('utf-8', errors='ignore')
+    except UnicodeDecodeError:
+        # Fallback to Latin-1 if UTF-8 fails
+        text = email_content.decode('latin-1', errors='ignore')
     except Exception as e:
-        print(f"Error extracting text from email ({file_extension}): {e}")
-        try:
-            text = email_content.decode('utf-8', errors='ignore')
-        except UnicodeDecodeError:
-            text = email_content.decode('latin-1', errors='ignore')
+        print(f"Error extracting text from email ({file_extension}) with basic decode: {e}")
     return text.strip()
 
 def extract_text_from_document(url: str) -> Optional[str]:
@@ -105,7 +97,7 @@ def extract_text_from_document(url: str) -> Optional[str]:
         text_content = extract_text_from_pdf(document_content)
     elif doc_type == "docx":
         text_content = extract_text_from_docx(document_content)
-    elif doc_type in ["msg", "eml"]:
+    elif doc_type in ["msg", "eml"]: # Use the simplified email extraction
         text_content = extract_text_from_email(document_content, doc_type)
     else:
         print(f"Unsupported document type: {doc_type} for URL: {url}")
